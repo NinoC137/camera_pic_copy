@@ -9,9 +9,11 @@ use regex::Regex;
 const THREAD_COUNT: usize = 4;
 
 fn main() -> std::io::Result<()> {
-    let src_dir = Path::new("/Users/nino/Documents/测试/");
-    let dst_dir = Path::new("/tmp/test_pic_copy/target_dir/");
-    let log_path = Path::new("/tmp/test_pic_copy/log.txt");
+    let src_dir = Path::new("/Volumes/Nikon_32SD/DCIM/101NZ_30/");
+    let dst_dir = Path::new("/Users/nino/Documents/测试/target_dir");
+    let log_path = Path::new("/Users/nino/Documents/测试/log.txt");
+    // let dst_dir = Path::new("/tmp/test_pic_copy/target_dir/");
+    // let log_path = Path::new("/tmp/test_pic_copy/log.txt");
 
     if !dst_dir.exists() {
         fs::create_dir(dst_dir)?;
