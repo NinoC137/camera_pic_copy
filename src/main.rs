@@ -1,19 +1,15 @@
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
-use std::path::{Path, PathBuf};
-use std::thread;
-use std::sync::{mpsc, Arc, Mutex};
+use std::path::{Path};
 
 use regex::Regex;
 
-const THREAD_COUNT: usize = 4;
-
 fn main() -> std::io::Result<()> {
     let src_dir = Path::new("/Volumes/Nikon_32SD/DCIM/101NZ_30/");
-    let dst_dir = Path::new("/Users/nino/Documents/测试/target_dir");
-    let log_path = Path::new("/Users/nino/Documents/测试/log.txt");
-    // let dst_dir = Path::new("/tmp/test_pic_copy/target_dir/");
-    // let log_path = Path::new("/tmp/test_pic_copy/log.txt");
+
+    // let src_dir = Path::new("/Users/nino/Documents/Nikon/");
+    let dst_dir = Path::new("/Users/nino/Documents/Nikon/pictures");
+    let log_path = Path::new("/Users/nino/Documents/Nikon/log.txt");
 
     if !dst_dir.exists() {
         fs::create_dir(dst_dir)?;
@@ -29,6 +25,7 @@ fn main() -> std::io::Result<()> {
 
     for entry in fs::read_dir(src_dir)? {
         let dir_entry = entry?;
+        //获取到的路径是乱序的，并非文件管理器中看到的顺序
         let path = dir_entry.path();
 
         if let Some(extension) = path.extension() {
@@ -63,14 +60,15 @@ fn main() -> std::io::Result<()> {
                 }
             }
         }
-
-        if max_id > last_id {
-            update_log(log_path, max_id)?;
-            println!("update id : {}", max_id);
-        } else {
-            println!("no change");
-        }
     }
+
+    if max_id > last_id {
+        update_log(log_path, max_id)?;
+        println!("update id : {}", max_id);
+    } else {
+        println!("no change");
+    }
+
     Ok(())
 }
 
