@@ -2,16 +2,37 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
-use ctrlc;
 
+use ctrlc;
+use serde::Deserialize;
 use regex::Regex;
 
-fn main() -> std::io::Result<()> {
-    let src_dir = Path::new("/Volumes/Nikon_32SD/DCIM/101NZ_30/");
+#[derive(Debug, Deserialize)]
+struct Settings {
+    src_dir: String,
+    dst_dir: String,
+    log_path: String,
+}
 
-    // let src_dir = Path::new("/Users/nino/Documents/Nikon/");
-    let dst_dir = Path::new("/Users/nino/Documents/Nikon/pictures");
-    let log_path = Path::new("/Users/nino/Documents/Nikon/log.txt");
+fn read_settings() -> std::io::Result<Settings> {
+    let exe_path = std::env::current_exe()?;
+    let exe_dir = exe_path.parent()
+        .ok_or(std::io::Error::from(std::io::ErrorKind::NotFound))?;
+    let settings_path = exe_dir.join("setting.txt");
+
+    let file = File::open(settings_path)?;
+    let reader = BufReader::new(file);
+    let settings = serde_json::from_reader(reader)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+    Ok(settings)
+}
+
+fn main() -> std::io::Result<()> {
+    let settings = read_settings()?;
+
+    let src_dir = Path::new(&settings.src_dir);
+    let dst_dir = Path::new(&settings.dst_dir);
+    let log_path = Path::new(&settings.log_path);
 
     if !dst_dir.exists() {
         fs::create_dir(dst_dir)?;
@@ -32,7 +53,7 @@ fn main() -> std::io::Result<()> {
 
     ctrlc::set_handler(move || {
         int_flag.store(true, Ordering::SeqCst);
-        println!("\nReceived Ctrl+C! Will stop after current file...");
+        println!("\n获取到中止指令，正在存储已转存的ID");
     }).expect("Error setting Ctrl-C handler");
 
     for entry in fs::read_dir(src_dir)? {

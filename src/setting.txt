@@ -1,0 +1,5 @@
+{
+  "src_dir": "/Volumes/Nikon_32SD/DCIM/101NZ_30/",
+  "dst_dir": "/Users/nino/Documents/Nikon/pictures",
+  "log_path": "/Users/nino/Documents/Nikon/log.txt"
+}
