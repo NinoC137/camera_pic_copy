@@ -1,6 +1,6 @@
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
-use std::path::{Path};
+use std::path::{Path, PathBuf};
 
 use regex::Regex;
 
@@ -23,6 +23,8 @@ fn main() -> std::io::Result<()> {
 
     let re = Regex::new(r"\d+").unwrap();
 
+    let mut files_with_id: Vec<(u32, PathBuf)> = Vec::new();
+
     for entry in fs::read_dir(src_dir)? {
         let dir_entry = entry?;
         //获取到的路径是乱序的，并非文件管理器中看到的顺序
@@ -44,21 +46,27 @@ fn main() -> std::io::Result<()> {
 
             if let Some(matched) = caps.get(0) {
                 if let Ok(id) = matched.as_str().parse::<u32>() {
-                    if id <= last_id {
-                        continue;   //已经拷贝过了
-                    }
-
-                    let file_name = path.file_name().unwrap();
-                    let dst_file = dst_dir.join(file_name);
-
-                    println!("Copying {:?} to {:?}", path, dst_file);
-                    fs::copy(&path, &dst_file)?;
-
-                    if id > max_id {
-                        max_id = id;
-                    }
+                    files_with_id.push((id, path));
                 }
             }
+        }
+    }
+
+    files_with_id.sort_by_key(|(id, _)| *id);
+
+    for (id, path) in files_with_id {
+        if id <= last_id {
+            continue;
+        }
+
+        let file_name = path.file_name().unwrap();
+        let dst_file = dst_dir.join(file_name);
+
+        println!("Copying {:?} to {:?}", path, dst_file);
+        fs::copy(&path, &dst_file)?;
+
+        if id > max_id {
+            max_id = id;
         }
     }
 
