@@ -21,54 +21,95 @@ fn main() -> std::io::Result<()> {
 
     println!("last id: {}", last_id);
 
-    let mut max_id = last_id;
-
     let re = Regex::new(r"\d+").unwrap();
+    let mut max_id = Arc::new(Mutex::new(last_id));
+    let (tx, rx) = mpsc::channel::<PathBuf>();
+    let rx = Arc::new(Mutex::new(rx));
 
-    for entry in fs::read_dir(src_dir)? {
-        let dir_entry = entry?;
-        let path = dir_entry.path();
+    let mut handles = Vec::new();
+    for _ in 0..THREAD_COUNT {
+        let rx = Arc::clone(&rx);
+        let dst_dir = dst_dir.to_path_buf();
+        let re = re.clone();
+        let max_id = Arc::clone(&max_id);
 
-        if let Some(extension) = path.extension() {
-            if extension.to_ascii_uppercase() != "NEF" {
-                continue;
-            }
-        } else {
-            continue;
-        }
+        let handle = thread::spawn(move || {
+            loop {
+                let path = {
+                    // 获取任务
+                    let lock = rx.lock().unwrap();
+                    lock.recv()
+                };
 
-        if let Some(file_stem) = path.file_stem() {
+                let path = match path {
+                    Ok(p) => p,
+                    Err(_) => break, // 通道关闭时退出线程
+                };
 
-            let caps = re.captures(file_stem.to_str()
-                .unwrap())
-                .unwrap();
-
-            if let Some(matched) = caps.get(0) {
-                if let Ok(id) = matched.as_str().parse::<u32>() {
-                    if id <= last_id {
-                        continue;   //已经拷贝过了
+                if let Some(ext) = path.extension() {
+                    if ext.to_ascii_uppercase() != "NEF" {
+                        continue;
                     }
+                } else {
+                    continue;
+                }
 
-                    let file_name = path.file_name().unwrap();
-                    let dst_file = dst_dir.join(file_name);
+                let file_stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+                if let Some(caps) = re.captures(file_stem) {
+                    if let Some(matched) = caps.get(0) {
+                        if let Ok(id) = matched.as_str().parse::<u32>() {
+                            let current_max = {
+                                let lock = max_id.lock().unwrap();
+                                *lock
+                            };
 
-                    println!("Copying {:?} to {:?}", path, dst_file);
-                    fs::copy(&path, &dst_file)?;
+                            if id <= current_max {
+                                continue;
+                            }
 
-                    if id > max_id {
-                        max_id = id;
+                            let file_name = path.file_name().unwrap();
+                            let dst_file = dst_dir.join(file_name);
+
+                            match fs::copy(&path, &dst_file) {
+                                Ok(_) => {
+                                    println!("Copied {:?} to {:?}", path, dst_file);
+                                    let mut lock = max_id.lock().unwrap();
+                                    if id > *lock {
+                                        *lock = id;
+                                    }
+                                }
+                                Err(e) => {
+                                    eprintln!("Failed to copy {:?}: {}", path, e);
+                                }
+                            }
+                        }
                     }
                 }
             }
-        }
+        });
 
-        if max_id > last_id {
-            update_log(log_path, max_id)?;
-            println!("update id : {}", max_id);
-        } else {
-            println!("no change");
-        }
+        handles.push(handle);
     }
+
+    for entry in fs::read_dir(src_dir)? {
+        let entry = entry?;
+        tx.send(entry.path()).unwrap();
+    }
+
+    drop(tx);
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
+
+    let final_max_id = *max_id.lock().unwrap();
+    if final_max_id > last_id {
+        update_log(log_path, final_max_id)?;
+        println!("update last id: {}", final_max_id);
+    } else {
+        println!("without update.");
+    }
+
     Ok(())
 }
 
