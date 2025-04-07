@@ -79,7 +79,7 @@ fn main() -> std::io::Result<()> {
     let int_flag = interrupted.clone();
     ctrlc::set_handler(move || {
         int_flag.store(true, Ordering::SeqCst);
-        println!("\n中断信号收到，准备安全退出");
+        println!("\n获取到中止指令，正在存储已转存的ID");
     }).expect("Error setting Ctrl-C handler");
 
     // 通道用于多线程任务调度

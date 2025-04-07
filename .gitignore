@@ -1,1 +1,3 @@
 target/
+
+!target/debug/camera_pic_copy
