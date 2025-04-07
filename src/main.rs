@@ -1,6 +1,8 @@
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+use ctrlc;
 
 use regex::Regex;
 
@@ -24,6 +26,14 @@ fn main() -> std::io::Result<()> {
     let re = Regex::new(r"\d+").unwrap();
 
     let mut files_with_id: Vec<(u32, PathBuf)> = Vec::new();
+
+    let interrupted = Arc::new(AtomicBool::new(false));
+    let int_flag = interrupted.clone();
+
+    ctrlc::set_handler(move || {
+        int_flag.store(true, Ordering::SeqCst);
+        println!("\nReceived Ctrl+C! Will stop after current file...");
+    }).expect("Error setting Ctrl-C handler");
 
     for entry in fs::read_dir(src_dir)? {
         let dir_entry = entry?;
@@ -55,6 +65,11 @@ fn main() -> std::io::Result<()> {
     files_with_id.sort_by_key(|(id, _)| *id);
 
     for (id, path) in files_with_id {
+        if interrupted.load(Ordering::SeqCst) {
+            println!("Saving last copied ID :{}", max_id);
+            break;
+        }
+
         if id <= last_id {
             continue;
         }
